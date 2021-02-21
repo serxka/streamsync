@@ -1,0 +1,13 @@
+body {
+	margin: 0;
+	background-color: #181a1b;
+}
+
+.centre {
+	margin: auto 0;
+	text-align: center;
+}
+
+#video {
+	max-width: 100vw;
+}
