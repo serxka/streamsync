@@ -1,47 +1,27 @@
 const video = document.getElementById("video");
 
 let wsConn = null;
-let eventActive = true;
-let lastSenderID = null;
-let lastTime = 0;
-let myID = null;
+let playedFirstTime = false;
 
 const wsEvents = {
 	open: function() {
 		console.log("Connected to WebSocket!");
-		wsConn.send("F:_");
 	},
 	message: function(event) {
-		console.log(event.data);
-		eventActive = false;
-		const items = event.data.split(':', 3);
-		switch (items[0]) {
-			case '0': {
-				video.currentTime = items[1];
-				lastTime = items[1];
-				lastSenderID = items[2];
-				break;
-			}
-			case '1': {
-				video.play();
-				lastSenderID = items[2];
-				break;
-			}
-			case '2': {
-				video.pause();
-				lastSenderID = items[2];
-				break;
-			}
-			case 'F': {
-				myID = items[2];
-				break;
-			}
-			default: {
-				console.error("unknown command: " + event.data);
-				break;
-			}
+		console.log('incumming data: ', event.data);
+
+		// Will only ever get called once
+		if (playedFirstTime === false) {
+			updateVideoState(JSON.parse(event.data));
+			playedFirstTime = true;
+			return;
 		}
-		eventActive = true;
+
+		disableEvents();
+		
+		updateVideoState(JSON.parse(event.data));
+		
+		enableEvents();
 	},
 	error: function(event) {
 		console.error("WebSocket error: ", event);
@@ -75,28 +55,46 @@ function wsDisconnect() {
 	}
 }
 
+function sendSHIT() {
+	wsConn.send(`{"SendState":{"time":${video.currentTime},"playing":${!video.paused},"uid":0}}`);
+}
+
+function updateVideoState(data) {
+	video.currentTime = data.time;
+	if (data.playing === true)
+		video.play();
+	else
+		video.pause();
+}
+
 const videoEvents = {
 	seeked: function() {
-		if (!eventActive) return;
-		if (lastTime == video.currentTime) return;
-		wsConn.send("0:" + video.currentTime);
+		sendSHIT();
 	},
 	play: function() {
-		if (!eventActive) return;
-		if (lastTime == video.currentTime) return;
-		wsConn.send("1:_");
+		if (playedFirstTime === false) 
+			wsConn.send('"GetState"');
+		else
+			sendSHIT();
 	},
 	pause: function() {
-		if (!eventActive) return;
-		if (lastTime == video.currentTime) return;
-		wsConn.send("2:_");
+		sendSHIT();
 	}
 };
 
-window.onload = function() {
-	video.addEventListener("seeked", videoEvents.seeked);
-	video.addEventListener("play", videoEvents.play);
-	video.addEventListener("pause", videoEvents.pause);
+function disableEvents() {
+	video.onseeked = null;
+	video.onplay = null;
+	video.onpause = null;
+}
 
+function enableEvents() {
+	video.onseeked = videoEvents.seeked;
+	video.onplay = videoEvents.play;
+	video.onpause = videoEvents.pause;
+}
+
+window.onload = function() {
+	enableEvents();
 	wsConnect();
 };
